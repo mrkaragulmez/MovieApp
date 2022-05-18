@@ -1,3 +1,4 @@
+using Autofac;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
@@ -10,6 +11,9 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Identity.Web;
 using Microsoft.OpenApi.Models;
+using MovieApp.Middlewares;
+using MovieApp.Repositories;
+using MovieApp.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -29,16 +33,37 @@ namespace MovieApp
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-                .AddMicrosoftIdentityWebApi(Configuration.GetSection("AzureAd"));
 
+            services.AddSingleton<IMovieRepository, Movie>();
+            services.AddMemoryCache();
             services.AddControllers();
             services.AddSwaggerGen(c =>
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "MovieApp", Version = "v1" });
+                c.AddSecurityDefinition("ApiKey", new OpenApiSecurityScheme()
+                {
+                    Type = SecuritySchemeType.ApiKey,
+                    In = ParameterLocation.Header,
+                    Name = "x-api-key",
+                    Description = "Api Key",
+                });
+                c.AddSecurityRequirement(new OpenApiSecurityRequirement {
+                    {
+                        new OpenApiSecurityScheme
+                        {
+                            Reference = new OpenApiReference { 
+                                Type = ReferenceType.SecurityScheme, 
+                                Id = "ApiKey" 
+                            },
+                            Scheme = "",
+                            Name = "ApiKey",
+                            In = ParameterLocation.Header
+                        },
+                        new List<string>()
+                    }
+                });
             });
         }
-
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
@@ -53,9 +78,9 @@ namespace MovieApp
 
             app.UseRouting();
 
-            app.UseAuthentication();
-            app.UseAuthorization();
-
+            app.UseMiddleware<ApiKeyMiddleware>();
+            //app.UseAuthentication();
+            //app.UseAuthorization();
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
